@@ -5,7 +5,7 @@ Pod::Spec.new do |s|
   s.license  = 'MIT'
   s.homepage         = 'https://github.com/hawk0620/EasyDataKit'
   s.author           = { 'Hawk' => 'lxlchenhalk@gmail.com' }
-  s.source           = { :git => 'https://github.com/hawk0620/EasyDataKit.git', :tag => "v#{s.version}" }
+  s.source           = { :git => 'https://github.com/hawk0620/EasyDataKit.git', :tag => s.version }
 
   s.ios.deployment_target = '7.0'
 
