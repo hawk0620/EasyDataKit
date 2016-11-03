@@ -2,7 +2,9 @@
 
 ### Initializes
 Create EDKEntity with tableName and dbName.
+```objc
 - (instancetype)initWithTableName:(NSString *)tableName dbName:(NSString *)dbName;
+```
 
 ### Store
 Store Object.
