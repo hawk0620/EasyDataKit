@@ -14,6 +14,8 @@ extern void EasyDataKitThreadsafetyForQueue(FMDatabaseQueue *queue);
 extern void syncInDb(FMDatabaseQueue *queue, DbBlock block);
 extern void asyncInDb(FMDatabaseQueue *queue, DbBlock block);
 
+extern dispatch_source_t CreateDispatchTimer(double interval, dispatch_queue_t queue, dispatch_block_t block);
+
 @interface EDKUtilities : NSObject
 
 + (void)parseDictionary:(NSDictionary *)dictionary columnInfoString:(NSMutableString * __autoreleasing *)columnInfoString properties:(NSMutableDictionary * __autoreleasing *)properties;
@@ -64,5 +66,14 @@ extern void asyncInDb(FMDatabaseQueue *queue, DbBlock block);
 
 - (BOOL)isEmptyString;
 - (BOOL)isVaildVariableName;
+
+@end
+
+
+@interface FMDatabaseQueue (ThreadSafe)
+
+- (dispatch_queue_t)queue;
+- (void)setShouldCacheStatements:(BOOL)value;
+- (FMDatabase*)database;
 
 @end

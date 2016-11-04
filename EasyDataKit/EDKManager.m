@@ -10,11 +10,22 @@
 #import "EDKEntity.h"
 
 #define PATH_OF_DOCUMENT    [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) objectAtIndex:0]
+#define kTransactionInterval 1
+
+@interface EDKDbInfo : NSObject
+
+@property (nonatomic, strong) FMDatabaseQueue *databaseQueue;
+@property (nonatomic, assign) BOOL isNeedCommit;
+@property (nonatomic, strong) dispatch_source_t timer;
+
+@end
+
+@implementation EDKDbInfo
+@end
 
 @interface EDKManager ()
 
-@property (nonatomic, strong) NSMutableDictionary *dbQueues;
-@property (nonatomic, strong) NSMutableArray *dbTables;
+@property (nonatomic, strong) NSMutableDictionary *dbInfos;
 
 @end
 
@@ -31,41 +42,70 @@
 
 - (instancetype)init {
     if (self = [super init]) {
-        _dbQueues = [[NSMutableDictionary alloc] init];
+        _dbInfos = [[NSMutableDictionary alloc] init];
     }
     return self;
 }
 
-- (FMDatabaseQueue *)dbQueueFromeDbName:(NSString *)dbName {
-    @synchronized (self.dbQueues) {
-        FMDatabaseQueue *queue = [self.dbQueues objectForKey:dbName];
-        if (!queue) {
+- (EDKDbInfo *)dbInfoFromeDbName:(NSString *)dbName {
+    @synchronized (_dbInfos) {
+        EDKDbInfo *dbInfo = [self.dbInfos objectForKey:dbName];
+        if (!dbInfo) {
             NSString *path = [PATH_OF_DOCUMENT stringByAppendingPathComponent:[dbName stringByAppendingPathExtension:@"db"]];
-            NSLog(@"%@", path);
-            queue = [FMDatabaseQueue databaseQueueWithPath:path];
+            FMDatabaseQueue *queue = [FMDatabaseQueue databaseQueueWithPath:path];
             EasyDataKitThreadsafetyForQueue(queue);
-            [self.dbQueues setObject:queue forKey:dbName];
+            [queue setShouldCacheStatements:YES];
+            NSLog(@"===%@",path);
+            
+            dbInfo = [[EDKDbInfo alloc] init];
+            dbInfo.databaseQueue = queue;
+            dbInfo.isNeedCommit = NO;
+            [_dbInfos setObject:dbInfo forKey:dbName];
         }
-        return queue;
+        
+        if (!dbInfo.timer) {
+            [self autoTransaction:dbInfo];
+        }
+        return dbInfo;
+    }
+}
+
+- (void)autoTransaction:(EDKDbInfo *)dbInfo {
+    FMDatabaseQueue *databaseQueue = dbInfo.databaseQueue;
+    
+    dbInfo.timer = CreateDispatchTimer(kTransactionInterval, [databaseQueue queue], ^{
+        if (dbInfo.isNeedCommit) {
+            syncInDb(databaseQueue, ^(FMDatabase *db) {
+                [db commit];
+                [db beginTransaction];
+            });
+            dbInfo.isNeedCommit = NO;
+        }
+    });
+    if (dbInfo.timer) {
+        asyncInDb(databaseQueue, ^(FMDatabase *db) {
+            [db beginTransaction];
+        });
+        dispatch_resume(dbInfo.timer);
+    }
+}
+
+- (void)dbNeedCommit:(EDKDbInfo *)dbInfo {
+    if (dbInfo.timer) {
+        dbInfo.isNeedCommit = YES;
     }
 }
 
 #pragma mark - private method
-- (void)syncExcuteSql:(NSString *)sql withDatabaseQueue:(FMDatabaseQueue *)databaseQueue {
-    syncInDb(databaseQueue, ^(FMDatabase *db) {
-        BOOL result = [db executeUpdate:sql];
-        NSLog(@"Handler is succeed: %d", result);
+- (void)syncExcuteSql:(NSString *)sql withDbQueue:(FMDatabaseQueue *)dbQueue {
+    syncInDb(dbQueue, ^(FMDatabase *db) {
+        [db executeUpdate:sql];
     });
 }
 
-- (void)syncExcuteSql:(NSString *)sql arguments:(NSArray *)arguments withDatabaseQueue:(FMDatabaseQueue *)databaseQueue {
-    syncInDb(databaseQueue, ^(FMDatabase *db) {
-        [db executeUpdate:sql withArgumentsInArray:arguments];
-    });
-}
-
-- (void)asyncExcuteSql:(NSString *)sql arguments:(NSArray *)arguments withDatabaseQueue:(FMDatabaseQueue *)databaseQueue {
-    asyncInDb(databaseQueue, ^(FMDatabase *db) {
+- (void)asyncExcuteSql:(NSString *)sql arguments:(NSArray *)arguments withDbQueue:(FMDatabaseQueue *)dbQueue block:(void (^)())block {
+    asyncInDb(dbQueue, ^(FMDatabase *db) {
+        block();
         [db executeUpdate:sql withArgumentsInArray:arguments];
     });
 }
@@ -120,18 +160,91 @@
     return tempName;
 }
 
-- (NSNumber *)syncInsert:(NSString *)sql data:(NSArray *)array withDatabaseQueue:(FMDatabaseQueue *)databaseQueue {
-    __block NSNumber *rowId;
-    syncInDb(databaseQueue, ^(FMDatabase *db) {
-        BOOL result = [db executeUpdate:sql withArgumentsInArray:array];
-        if (result) {
-            rowId = @([db lastInsertRowId]);
-        }
-    });
-    return rowId;
+#pragma mark - Primark Column Method
+- (NSString *)getPkColumn:(EDKEntity *)entity {
+    EDKDbInfo *dbInfo = [self dbInfoFromeDbName:entity.dbName];
+    return [self pkColumn:entity.tableName withDatabaseQueue:dbInfo.databaseQueue];
 }
 
-- (NSArray *)querySql:(NSString *)sql arguments:(NSArray *)arguments queryColumns:(NSArray *)queryColumns withDatabaseQueue:(FMDatabaseQueue *)databaseQueue {
+#pragma mark - Save Method
+- (void)createOrUpdateTable:(NSString *)tableName primaryKey:(NSString *)primaryKey columnInfoString:(NSMutableString *)columnInfoString hasPrimaryKey:(BOOL)hasPrimaryKey properties:(NSDictionary *)properties withDatabaseQueue:(FMDatabaseQueue *)databaseQueue {
+    @synchronized (self) {
+        BOOL isTableExist = [self existTable:tableName withDatabaseQueue:databaseQueue];
+        
+        if (!isTableExist) {
+            NSString *sql = [EDKUtilities createTableSql:tableName columnInfoString:columnInfoString primaryKey:primaryKey hasPrimaryKey:hasPrimaryKey];
+            [self syncExcuteSql:sql withDbQueue:databaseQueue];
+        } else {
+            NSArray *tableColumns = [self tableColumns:tableName withDatabaseQueue:databaseQueue];
+            for (NSString *key in properties.allKeys) {
+                if (![tableColumns containsObject:key]) {
+                    NSDictionary *dictionary = @{key: properties[key]};
+                    NSString *sql = [EDKUtilities alterTableSql:tableName dictionary:dictionary];
+                    [self syncExcuteSql:sql withDbQueue:databaseQueue];
+                }
+            }
+        }
+    }
+    
+}
+
+- (void)insertToTable:(NSString *)tableName properties:(NSMutableDictionary *)properties hasPrimaryKey:(BOOL)hasPrimaryKey rowId:(NSNumber **)rowId withDatabaseQueue:(EDKDbInfo *)dbInfo {
+    [properties setObject:[NSDate date] forKey:@"private_created_time"];
+    [properties setObject:[NSDate date] forKey:@"private_updated_time"];
+    NSArray *tableColumns = [self tableColumns:tableName withDatabaseQueue:dbInfo.databaseQueue];
+    NSMutableArray *arguments = [[NSMutableArray alloc] init];
+    
+    NSString *sql = [EDKUtilities insertSql:tableName tableColumns:tableColumns propertyDict:properties arguments:&arguments];
+    
+    if (hasPrimaryKey) {
+        
+        __weak __typeof(self)weakSelf = self;
+        asyncInDb(dbInfo.databaseQueue, ^(FMDatabase *db) {
+            __strong __typeof(weakSelf)strongSelf = weakSelf;
+            [strongSelf dbNeedCommit:dbInfo];
+            [db executeUpdate:sql withArgumentsInArray:arguments];
+        });
+        
+        //        [self asyncExcuteSql:sql arguments:arguments withDbQueue:dbInfo.databaseQueue block:^{
+        //            __strong __typeof(weakSelf)strongSelf = weakSelf;
+        //            [strongSelf dbNeedCommit:dbInfo];
+        //        }];
+    } else {
+        
+        __weak __typeof(self)weakSelf = self;
+        syncInDb(dbInfo.databaseQueue, ^(FMDatabase *db) {
+            __strong __typeof(weakSelf)strongSelf = weakSelf;
+            [strongSelf dbNeedCommit:dbInfo];
+            
+            BOOL result = [db executeUpdate:sql withArgumentsInArray:arguments];
+            if (result) {
+                if (rowId) {
+                    *rowId = @([db lastInsertRowId]);
+                }
+            }
+        });
+    }
+}
+
+- (id)saveObject:(EDKEntity *)entity {
+    __block NSNumber *rowId;
+    EDKDbInfo *dbInfo = [self dbInfoFromeDbName:entity.dbName];
+    
+    [self createOrUpdateTable:entity.tableName primaryKey:entity.primaryColumn columnInfoString:entity.columnInfoString hasPrimaryKey:entity.hasPrimaryKey properties:entity.properties withDatabaseQueue:dbInfo.databaseQueue];
+    [self insertToTable:entity.tableName properties:entity.properties hasPrimaryKey:entity.hasPrimaryKey rowId:&rowId withDatabaseQueue:dbInfo];
+    
+    return entity.hasPrimaryKey ? entity.properties[entity.primaryColumn] : rowId;
+}
+
+#pragma mark - Query Method
+- (NSArray *)queryFromTable:(NSString *)tableName columns:(NSArray *)columns where:(NSString *)where arguments:(NSArray *)arguments withDatabaseQueue:(FMDatabaseQueue *)databaseQueue {
+    NSMutableString *sql = [EDKUtilities querySql:tableName columns:columns];
+    if (where) {
+        NSAssert([where isKindOfClass:[NSString class]], @"type error");
+        [sql appendFormat:@" %@", where];
+    }
+    
+    NSArray *queryColumns = columns.count == 0 ? [self tableColumns:tableName withDatabaseQueue:databaseQueue] : [columns safeObjectsForSql];
     NSMutableArray *objects = [[NSMutableArray alloc] init];
     
     syncInDb(databaseQueue, ^(FMDatabase *db) {
@@ -147,102 +260,37 @@
         }
         [rs close];
     });
-    return objects;
-}
-
-#pragma mark - Primark Column Method
-- (NSString *)getPkColumn:(EDKEntity *)entity {
-    FMDatabaseQueue *databaseQueue = [self dbQueueFromeDbName:entity.dbName];
-    return [self pkColumn:entity.tableName withDatabaseQueue:databaseQueue];
-}
-
-#pragma mark - Save Method
-- (void)createOrUpdateTable:(NSString *)tableName primaryKey:(NSString *)primaryKey columnInfoString:(NSMutableString *)columnInfoString hasPrimaryKey:(BOOL)hasPrimaryKey properties:(NSDictionary *)properties withDatabaseQueue:(FMDatabaseQueue *)databaseQueue {
-    @synchronized (self) {
-        BOOL isTableExist = [self existTable:tableName withDatabaseQueue:databaseQueue];
-        
-        if (!isTableExist) {
-            NSString *sql = [EDKUtilities createTableSql:tableName columnInfoString:columnInfoString primaryKey:primaryKey hasPrimaryKey:hasPrimaryKey];
-            [self syncExcuteSql:sql withDatabaseQueue:databaseQueue];
-        } else {
-            NSArray *tableColumns = [self tableColumns:tableName withDatabaseQueue:databaseQueue];
-            for (NSString *key in properties.allKeys) {
-                if (![tableColumns containsObject:key]) {
-                    NSDictionary *dictionary = @{key: properties[key]};
-                    NSString *sql = [EDKUtilities alterTableSql:tableName dictionary:dictionary];
-                    [self syncExcuteSql:sql withDatabaseQueue:databaseQueue];
-                }
-            }
-        }
-    }
     
-}
-
-- (void)insertToTable:(NSString *)tableName properties:(NSMutableDictionary *)properties hasPrimaryKey:(BOOL)hasPrimaryKey rowId:(NSNumber **)rowId withDatabaseQueue:(FMDatabaseQueue *)databaseQueue {
-    [properties setObject:[NSDate date] forKey:@"private_created_time"];
-    [properties setObject:[NSDate date] forKey:@"private_updated_time"];
-    NSArray *tableColumns = [self tableColumns:tableName withDatabaseQueue:databaseQueue];
-    NSMutableArray *arguments = [[NSMutableArray alloc] init];
-    
-    NSString *sql = [EDKUtilities insertSql:tableName tableColumns:tableColumns propertyDict:properties arguments:&arguments];
-    
-    if (hasPrimaryKey) {
-        [self asyncExcuteSql:sql arguments:arguments withDatabaseQueue:databaseQueue];
-    } else {
-        NSNumber *lastInsertId = [self syncInsert:sql data:arguments withDatabaseQueue:databaseQueue];
-        if (rowId) {
-            *rowId = lastInsertId;
-        }
-    }
-}
-
-- (id)saveObject:(EDKEntity *)entity {
-    __block NSNumber *rowId;
-    FMDatabaseQueue *databaseQueue = [self dbQueueFromeDbName:entity.dbName];
-    
-    [self createOrUpdateTable:entity.tableName primaryKey:entity.primaryColumn columnInfoString:entity.columnInfoString hasPrimaryKey:entity.hasPrimaryKey properties:entity.properties withDatabaseQueue:databaseQueue];
-    [self insertToTable:entity.tableName properties:entity.properties hasPrimaryKey:entity.hasPrimaryKey rowId:&rowId withDatabaseQueue:databaseQueue];
-    
-    NSLog(@"==%@", entity.properties[entity.primaryColumn]);
-    return entity.hasPrimaryKey ? entity.properties[entity.primaryColumn] : rowId;
-}
-
-#pragma mark - Query Method
-- (NSArray *)queryFromTable:(NSString *)tableName columns:(NSArray *)columns where:(NSString *)where arguments:(NSArray *)arguments withDatabaseQueue:(FMDatabaseQueue *)databaseQueue {
-    NSMutableString *sql = [EDKUtilities querySql:tableName columns:columns];
-    if (where) {
-        NSAssert([where isKindOfClass:[NSString class]], @"type error");
-        [sql appendFormat:@" %@", where];
-    }
-    
-    NSArray *queryColumns = columns.count == 0 ? [self tableColumns:tableName withDatabaseQueue:databaseQueue] : [columns safeObjectsForSql];
-    NSArray *objects = [self querySql:sql arguments:arguments queryColumns:queryColumns withDatabaseQueue:databaseQueue];
     return objects;
 }
 
 - (NSArray *)queryObjects:(EDKEntity *)entity {
-    FMDatabaseQueue *databaseQueue = [self dbQueueFromeDbName:entity.dbName];
-    return [self queryFromTable:entity.tableName columns:entity.columns where:entity.where arguments:entity.arguments withDatabaseQueue:databaseQueue];
+    EDKDbInfo *dbInfo = [self dbInfoFromeDbName:entity.dbName];
+    return [self queryFromTable:entity.tableName columns:entity.columns where:entity.where arguments:entity.arguments withDatabaseQueue:dbInfo.databaseQueue];
 }
 
 #pragma mark - Delete Method
-- (void)deleteFromTable:(NSString *)tableName where:(NSString *)where arguments:(NSArray *)arguments withDatabaseQueue:(FMDatabaseQueue *)databaseQueue {
+- (void)deleteFromTable:(NSString *)tableName where:(NSString *)where arguments:(NSArray *)arguments withDatabaseQueue:(EDKDbInfo *)dbInfo {
     NSMutableString *sql = [EDKUtilities deleteSql:tableName];
     if (where) {
         NSAssert([where isKindOfClass:[NSString class]], @"type error");
         [sql appendFormat:@" %@", where];
     }
     
-    [self asyncExcuteSql:sql arguments:arguments withDatabaseQueue:databaseQueue];
+    __weak __typeof(self)weakSelf = self;
+    [self asyncExcuteSql:sql arguments:arguments withDbQueue:dbInfo.databaseQueue block:^{
+        __strong __typeof(weakSelf)strongSelf = weakSelf;
+        [strongSelf dbNeedCommit:dbInfo];
+    }];
 }
 
 - (void)deleteObjects:(EDKEntity *)entity {
-    FMDatabaseQueue *databaseQueue = [self dbQueueFromeDbName:entity.dbName];
-    [self deleteFromTable:entity.tableName where:entity.where arguments:entity.arguments withDatabaseQueue:databaseQueue];
+    EDKDbInfo *dbInfo = [self dbInfoFromeDbName:entity.dbName];
+    [self deleteFromTable:entity.tableName where:entity.where arguments:entity.arguments withDatabaseQueue:dbInfo];
 }
 
 #pragma mark - Update Method
-- (void)updateToTable:(NSString *)tableName set:(NSDictionary *)set where:(NSString *)where arguments:(NSArray *)arguments withDatabaseQueue:(FMDatabaseQueue *)databaseQueue {
+- (void)updateToTable:(NSString *)tableName set:(NSDictionary *)set where:(NSString *)where arguments:(NSArray *)arguments withDatabaseQueue:(EDKDbInfo *)dbInfo {
     NSMutableDictionary *properties = [[NSMutableDictionary alloc] init];
     [EDKUtilities parseDictionary:set columnInfoString:nil properties:&properties];
     [properties setObject:[NSDate date] forKey:@"private_updated_time"];
@@ -253,14 +301,18 @@
         NSAssert([where isKindOfClass:[NSString class]], @"type error");
         [sql appendFormat:@" %@", where];
     }
-    
     [values addObjectsFromArray:arguments];
-    [self asyncExcuteSql:sql arguments:values withDatabaseQueue:databaseQueue];
+    
+    __weak __typeof(self)weakSelf = self;
+    [self asyncExcuteSql:sql arguments:values withDbQueue:dbInfo.databaseQueue block:^{
+        __strong __typeof(weakSelf)strongSelf = weakSelf;
+        [strongSelf dbNeedCommit:dbInfo];
+    }];
 }
 
 - (void)updateObjects:(EDKEntity *)entity {
-    FMDatabaseQueue *databaseQueue = [self dbQueueFromeDbName:entity.dbName];
-    [self updateToTable:entity.tableName set:entity.set where:entity.where arguments:entity.arguments withDatabaseQueue:databaseQueue];
+    EDKDbInfo *dbInfo = [self dbInfoFromeDbName:entity.dbName];
+    [self updateToTable:entity.tableName set:entity.set where:entity.where arguments:entity.arguments withDatabaseQueue:dbInfo];
 }
 
 @end

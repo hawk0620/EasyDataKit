@@ -8,34 +8,6 @@
 #import "EDKUtilities.h"
 #import "objc/runtime.h"
 
-@interface FMDatabaseQueue (ThreadSafe)
-
-- (dispatch_queue_t)queue;
-- (FMDatabase*)database;
-
-@end
-
-@implementation FMDatabaseQueue (ThreadSafe)
-
-- (dispatch_queue_t)queue {
-    return _queue;
-}
-
-- (FMDatabase*)database {
-    if (!_db) {
-        _db = FMDBReturnRetained([FMDatabase databaseWithPath:_path]);
-        
-        if (![_db open]) {
-            FMDBRelease(_db);
-            _db  = nil;
-            return nil;
-        }
-    }
-    return _db;
-}
-
-@end
-
 static void *const EasyDataKitThreadsafetyQueueIDKey = (void *)&EasyDataKitThreadsafetyQueueIDKey;
 
 void EasyDataKitThreadsafetyForQueue(FMDatabaseQueue *queue) {
@@ -75,6 +47,15 @@ void asyncInDb(FMDatabaseQueue *queue, DbBlock block) {
     } else {
         dispatch_async([queue queue], task);
     }
+}
+
+dispatch_source_t CreateDispatchTimer(double interval, dispatch_queue_t queue, dispatch_block_t block) {
+    dispatch_source_t timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, queue);
+    if (timer) {
+        dispatch_source_set_timer(timer, dispatch_time(DISPATCH_TIME_NOW, interval * NSEC_PER_SEC), interval * NSEC_PER_SEC, NSEC_PER_MSEC);
+        dispatch_source_set_event_handler(timer, block);
+    }
+    return timer;
 }
 
 @implementation EDKUtilities
@@ -442,6 +423,31 @@ void asyncInDb(FMDatabaseQueue *queue, DbBlock block) {
     } else {
         return NO;
     }
+}
+
+@end
+
+@implementation FMDatabaseQueue (ThreadSafe)
+
+- (dispatch_queue_t)queue {
+    return _queue;
+}
+
+- (void)setShouldCacheStatements:(BOOL)value {
+    [_db setShouldCacheStatements:value];
+}
+
+- (FMDatabase*)database {
+    if (!_db) {
+        _db = FMDBReturnRetained([FMDatabase databaseWithPath:_path]);
+        
+        if (![_db open]) {
+            FMDBRelease(_db);
+            _db  = nil;
+            return nil;
+        }
+    }
+    return _db;
 }
 
 @end
