@@ -1,56 +1,168 @@
 # EasyDataKit
 
-### Initializes
-Create EDKEntity with tableName and dbName.
-```objc
-- (instancetype)initWithTableName:(NSString *)tableName dbName:(NSString *)dbName;
+EasyDataKit makes data store, update, query and delete easy.It is based on FMDB, and support an ORM way to deal with db.
+
+# Features
+
+* like ORM interface.
+
+* auto create db and table, also alter table
+
+* support where condition query
+
+* auto transaction improve insert effect
+
+# Installation
+
+```
+pod 'EasyDataKit'
 ```
 
-### Store
-Store Object.
-```objc
-- (void)saveData:(NSDictionary *)data primaryColumn:(NSString *)primaryColumn relationShip:(NSDictionary *)relationShip;
+# Usage
+
+Assume you get a response from network such as:
+
+```
+{
+    "data": {
+        "id": "56d177a27cb3331100465f72",
+        "messagePrefix": "饭否每日精选",
+        "content": "饭否每日精选",
+        "topicId": 1345,
+        "briefIntro": "饭否是国内著名的小众轻博客社区，氛围独特，清新自由。关注饭否每日精选，看看尘嚣之外，大家谈论什么。",
+        "keywords": "饭否 精选 短博客 社区",
+        "timeForRank": "2016-02-27T11:06:30.731Z",
+        "lastMessagePostTime": "2016-11-06T02:42:52.111Z",
+        "topicPublishDate": "2016-02-26T16:00:00.000Z",
+        "createdAt": "2016-02-27T10:17:06.295Z",
+        "updatedAt": "2016-11-01T04:30:08.973Z",
+        "subscribersCount": 1207100,
+        "subscribedStatusRawValue": 1,
+        "subscribedAt": "2016-10-18T09:57:24.424Z",
+        "rectanglePicture": {
+            "thumbnailUrl": "https://cdn.ruguoapp.com/o_1ach3c6o011j91ljjtmdhlhnffo.jpg?imageView2/1/w/120/h/180",
+            "middlePicUrl": "https://cdn.ruguoapp.com/o_1ach3c6o011j91ljjtmdhlhnffo.jpg?imageView2/1/w/200/h/300",
+            "picUrl": "https://cdn.ruguoapp.com/o_1ach3c6o011j91ljjtmdhlhnffo.jpg?imageView2/0/h/1000",
+            "format": "png"
+        },
+        "squarePicture": {
+            "thumbnailUrl": "https://cdn.ruguoapp.com/o_1ach6nm599m94re1gvj14r71jaso.jpg?imageView2/0/w/120/h/120",
+            "middlePicUrl": "https://cdn.ruguoapp.com/o_1ach6nm599m94re1gvj14r71jaso.jpg?imageView2/0/w/300/h/300",
+            "picUrl": "https://cdn.ruguoapp.com/o_1ach6nm599m94re1gvj14r71jaso.jpg?imageView2/0/h/1000",
+            "format": "png"
+        },
+        "pictureUrl": "https://cdn.ruguoapp.com/o_1ach3c6o011j91ljjtmdhlhnffo.jpg?imageView2/1/w/200/h/300",
+        "thumbnailUrl": "https://cdn.ruguoapp.com/o_1ach6nm599m94re1gvj14r71jaso.jpg?imageView2/0/w/300/h/300"
+    }
+}
 ```
 
-### Query
-Query by primary key.
+You can convert it to Dictionary or Array
+
 ```objc
-- (id)queryByPrimaryKey:(id)primaryKey withColumns:(NSArray *)columns;
+NSDictionary *dictionary = [NSJSONSerialization JSONObjectWithData:data options:NSJSONReadingAllowFragments error:nil];
+NSDictionary *subscribe = dictionary[@"data"];
 ```
 
-Query by where condition.
+## Store
+
+Then you can call EasyDataKit method to store:
+
 ```objc
-- (NSArray *)queryWithColumns:(NSArray *)columns where:(NSString *)where arguments:(NSArray *)arguments;
+EDKEntity *subscribeEntity = [[EDKEntity alloc] initWithTableName:@"subcribes" dbName:nil];
+[subscribeEntity saveData:subscribe primaryColumn:@"id" relationShip:nil];
 ```
 
-Query All.
+If you don't want to use "id" as primary column, you can pass nil to use rowId as primary column:
+
 ```objc
-- (NSArray *)queryAll;
+EDKEntity *subscribeEntity = [[EDKEntity alloc] initWithTableName:@"subcribes" dbName:nil];
+[subscribeEntity saveData:subscribe primaryColumn:nil relationShip:nil];
 ```
 
-### Delete
-Delete by primary key
+If you want to add a column manually:
+
 ```objc
-- (void)deleteByPrimaryKey:(id)primaryKey;
+NSMutableDictionary *subcribeInfo = [[NSMutableDictionary alloc] initWithDictionary:subscribe];
+[subcribeInfo setObject:@1 forKey:@"isSubcribed"];
+EDKEntity *subscribeEntity = [[EDKEntity alloc] initWithTableName:@"subcribes" dbName:nil];
+[subscribeEntity saveData:subcribeInfo primaryColumn:@"id" relationShip:nil];
 ```
 
-Delete by where condition.
+If you have a relation with other object, notice the related field must be in the storage's data, it likes replace a field's value:
+
 ```objc
-- (void)deleteWithWhere:(NSString *)where arguments:(NSArray *)arguments;
+id rowId = [rectanglePictureEntity saveData:subscribe[@"rectanglePicture"] primaryColumn:nil relationShip:nil];
+
+EDKEntity *subscribeEntity = [[EDKEntity alloc] initWithTableName:@"subcribes" dbName:nil];
+[subscribeEntity saveData:subscribe primaryColumn:@"id" relationShip:@{@"rectanglePicture": rowId}];
 ```
 
-Delete All.
+## Query
+
+Query by id:
 ```objc
-- (void)deleteAll;
+// select by id
+EDKEntity *entity = [[EDKEntity alloc] initWithTableName:@"messages" dbName:nil];
+id object = [entity queryByPrimaryKey:@"581d2fdb36a4471100e311d6" withColumns:@[@"topicId", @"commentCount", @"topic"]];
+NSLog(@"%@", object);
+
+// relationship query
+EDKEntity *topicEntity = [[EDKEntity alloc] initWithTableName:@"topics" dbName:nil];
+id topic = [topicEntity queryByPrimaryKey:object[@"topic"] withColumns:nil];
+NSLog(@"%@",topic);
 ```
 
-### Update
-Update by primary key with set collection.
+Query by where:
 ```objc
-- (void)updateByPrimaryKey:(id)primaryKey set:(NSDictionary *)set;
+NSArray *objects = [entity queryWithColumns:nil where:@"WHERE commentCount < ? and read = ?" arguments:@[@20, @1]];
+NSLog(@"%@", objects);
+
+Query all:
+```objc
+NSArray *objects = [entity queryAll];
+NSLog(@"%@", objects);
 ```
 
-Update by where condition with set collection.
+Query a nest object then convert it to Dictionary or Array:
 ```objc
-- (void)updateWithSet:(NSDictionary *)set where:(NSString *)where arguments:(NSArray *)arguments;
+EDKEntity *subcribeEntity = [[EDKEntity alloc] initWithTableName:@"subcribes" dbName:nil];
+// select by id
+id subcribe = [subcribeEntity queryByPrimaryKey:@"56d177a27cb3331100465f72" withColumns:@[@"squarePicture"]];
+// subcribe is a json string
+NSData *data = [subcribe[@"squarePicture"] dataUsingEncoding:NSUTF8StringEncoding];
+NSError *error;
+NSDictionary *jsonDict = [NSJSONSerialization JSONObjectWithData:data options:0 error:&error];
+NSLog(@"JSONDict: %@", jsonDict);
 ```
+
+## Update
+
+Normal update:
+```objc
+EDKEntity *entity = [[EDKEntity alloc] initWithTableName:@"messages" dbName:nil];
+[entity updateByPrimaryKey:@"5805905a319a9c1200833660" set:@{@"read": @"0", @"commentCount": @99}];
+[entity updateWithSet:@{@"messageId": @"2333333"} where:@"WHERE commentCount > ?" arguments:@[@50]];
+```
+
+Update with dictionary:
+```objc
+NSDictionary *square = @{@"lisp": @"blablabla..."};
+EDKEntity *subcribeEntity = [[EDKEntity alloc] initWithTableName:@"subcribes" dbName:nil];
+[subcribeEntity updateByPrimaryKey:@"56d177a27cb3331100465f72" set:@{@"squarePicture": square}];
+```
+
+## Delete
+```objc
+EDKEntity *entity = [[EDKEntity alloc] initWithTableName:@"messages" dbName:nil];
+// delete by id
+[entity deleteByPrimaryKey:@"5805905a319a9c1200833660"];
+// delete by where
+[entity deleteWithWhere:@"WHERE popularity = ?" arguments:@[@"93"]];
+// delete all
+[entity deleteAll];
+```
+
+# License
+
+GYDataCenter is available under the MIT license. See the LICENSE file for more info.
