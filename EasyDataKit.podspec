@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'EasyDataKit'
-  s.version          = '0.0.2'
+  s.version          = '0.0.3'
   s.summary          = 'Super Easy Store Fetch Update And Delete Data With SQLite.'
   s.license  = 'MIT'
   s.homepage         = 'https://github.com/hawk0620/EasyDataKit'
