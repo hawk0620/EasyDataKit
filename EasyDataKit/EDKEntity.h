@@ -102,7 +102,7 @@
  @param relationShip The relation that relate other data, if data dosen't need relate, set `nil`.
  
  */
-- (void)saveData:(NSDictionary *)data primaryColumn:(NSString *)primaryColumn relationShip:(NSDictionary *)relationShip;
+- (id)saveData:(NSDictionary *)data primaryColumn:(NSString *)primaryColumn relationShip:(NSDictionary *)relationShip;
 
 /**
  Returns data in the table.

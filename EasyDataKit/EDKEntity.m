@@ -46,7 +46,7 @@
     return [self initWithTableName:nil dbName:nil];
 }
 
-- (void)saveData:(NSDictionary *)data primaryColumn:(NSString *)primaryColumn relationShip:(NSDictionary *)relationShip {
+- (id)saveData:(NSDictionary *)data primaryColumn:(NSString *)primaryColumn relationShip:(NSDictionary *)relationShip {
     NSAssert([data isKindOfClass:[NSDictionary class]], @"type error");
     NSAssert(data.count != 0, @"data empty");
     self.data = data;
@@ -72,7 +72,7 @@
     self.properties = properties;
     self.relationShip = newRelationShip;
     
-    [[EDKManager sharedInstance] saveObject:self];
+    return [[EDKManager sharedInstance] saveObject:self];
 }
 
 - (id)queryByPrimaryKey:(id)primaryKey withColumns:(NSArray *)columns {

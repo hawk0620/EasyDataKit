@@ -55,7 +55,9 @@
             FMDatabaseQueue *queue = [FMDatabaseQueue databaseQueueWithPath:path];
             EasyDataKitThreadsafetyForQueue(queue);
             [queue setShouldCacheStatements:YES];
-            NSLog(@"===%@",path);
+            #ifdef DEBUG
+            NSLog(@"DB LOG PATH: %@",path);
+            #endif
             
             dbInfo = [[EDKDbInfo alloc] init];
             dbInfo.databaseQueue = queue;
@@ -176,13 +178,17 @@
             [self syncExcuteSql:sql withDbQueue:databaseQueue];
         } else {
             NSArray *tableColumns = [self tableColumns:tableName withDatabaseQueue:databaseQueue];
-            for (NSString *key in properties.allKeys) {
-                if (![tableColumns containsObject:key]) {
-                    NSDictionary *dictionary = @{key: properties[key]};
-                    NSString *sql = [EDKUtilities alterTableSql:tableName dictionary:dictionary];
-                    [self syncExcuteSql:sql withDbQueue:databaseQueue];
+            
+            if ((tableColumns.count - 2) < properties.allKeys.count) {
+                for (NSString *key in properties.allKeys) {
+                    if (![tableColumns containsObject:key]) {
+                        NSDictionary *dictionary = @{key: properties[key]};
+                        NSString *sql = [EDKUtilities alterTableSql:tableName dictionary:dictionary];
+                        [self syncExcuteSql:sql withDbQueue:databaseQueue];
+                    }
                 }
             }
+            
         }
     }
     
@@ -199,16 +205,10 @@
     if (hasPrimaryKey) {
         
         __weak __typeof(self)weakSelf = self;
-        asyncInDb(dbInfo.databaseQueue, ^(FMDatabase *db) {
+        [self asyncExcuteSql:sql arguments:arguments withDbQueue:dbInfo.databaseQueue block:^{
             __strong __typeof(weakSelf)strongSelf = weakSelf;
             [strongSelf dbNeedCommit:dbInfo];
-            [db executeUpdate:sql withArgumentsInArray:arguments];
-        });
-        
-        //        [self asyncExcuteSql:sql arguments:arguments withDbQueue:dbInfo.databaseQueue block:^{
-        //            __strong __typeof(weakSelf)strongSelf = weakSelf;
-        //            [strongSelf dbNeedCommit:dbInfo];
-        //        }];
+        }];
     } else {
         
         __weak __typeof(self)weakSelf = self;
