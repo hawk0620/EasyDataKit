@@ -165,4 +165,4 @@ EDKEntity *entity = [[EDKEntity alloc] initWithTableName:@"messages" dbName:nil]
 
 # License
 
-GYDataCenter is available under the MIT license. See the LICENSE file for more info.
+EasyDataKit is available under the MIT license. See the LICENSE file for more info.
