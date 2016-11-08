@@ -1,6 +1,6 @@
 # EasyDataKit
 
-####[English Introduction](#English Introduction)
+####([English Introduction](#english))
 
 EasyDataKit 可以使数据存储、更新、查询和删除操作变得非常简单。它基于 FMDB 封装，支持了类似 ORM 的方式进行数据库操作。特别适用于获取网络请求后直接对 JSON 数据的持久化等操作。
 
@@ -169,7 +169,7 @@ EDKEntity *entity = [[EDKEntity alloc] initWithTableName:@"messages" dbName:nil]
 EasyDataKit 采用 MIT 许可证，详情见 LICENSE 文件。
 
 
-# English Introduction
+# English
 
 EasyDataKit makes data store, update, query and delete easy.It is based on FMDB, and support an ORM way to deal with db.
 
