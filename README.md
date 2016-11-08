@@ -1,4 +1,6 @@
-# EasyDataKit [English Introduction](#user-content-English Introduction)
+# EasyDataKit
+
+####[English Introduction](#English Introduction)
 
 EasyDataKit 可以使数据存储、更新、查询和删除操作变得非常简单。它基于 FMDB 封装，支持了类似 ORM 的方式进行数据库操作。特别适用于获取网络请求后直接对 JSON 数据的持久化等操作。
 
