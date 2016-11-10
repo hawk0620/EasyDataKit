@@ -67,6 +67,30 @@ fi
 			<key>sourceTree</key>
 			<string>&lt;group&gt;</string>
 		</dict>
+		<key>4C58F9B7C292C91889B56EAA</key>
+		<dict>
+			<key>buildActionMask</key>
+			<string>2147483647</string>
+			<key>files</key>
+			<array/>
+			<key>inputPaths</key>
+			<array/>
+			<key>isa</key>
+			<string>PBXShellScriptBuildPhase</string>
+			<key>name</key>
+			<string>Embed Pods Frameworks</string>
+			<key>outputPaths</key>
+			<array/>
+			<key>runOnlyForDeploymentPostprocessing</key>
+			<string>0</string>
+			<key>shellPath</key>
+			<string>/bin/sh</string>
+			<key>shellScript</key>
+			<string>"${SRCROOT}/Pods/Target Support Files/Pods-EDKTests/Pods-EDKTests-frameworks.sh"
+</string>
+			<key>showEnvVarsInLog</key>
+			<string>0</string>
+		</dict>
 		<key>6515D996DE23153DC75DBDC0</key>
 		<dict>
 			<key>includeInIndex</key>
@@ -408,6 +432,7 @@ fi
 				<string>87F1DB5F1DCF54A700D1C8F3</string>
 				<string>A16E902DBA2E5F5287790C8F</string>
 				<string>E6079049652671133B7F25D8</string>
+				<string>4C58F9B7C292C91889B56EAA</string>
 			</array>
 			<key>buildRules</key>
 			<array/>

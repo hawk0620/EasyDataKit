@@ -162,6 +162,37 @@
     return tempName;
 }
 
+- (void)createIndexes:(NSString *)tableName index:(NSArray *)index allColumns:(NSArray *)allColumns withDatabaseQueue:(FMDatabaseQueue *)databaseQueue {
+    asyncInDb(databaseQueue, ^(FMDatabase *db) {
+        NSString *indexSql = [EDKUtilities createIndexesSql:tableName index:index allColumn:allColumns];
+        [db executeUpdate:indexSql];
+    });
+}
+
+- (NSMutableSet *)getIndexes:(NSString *)tableName withDatabaseQueue:(FMDatabaseQueue *)databaseQueue {
+    NSMutableSet *indexes = [[NSMutableSet alloc] init];
+    NSString *sql = [[NSString alloc] initWithFormat:@"PRAGMA index_list(%@)", tableName];
+    syncInDb(databaseQueue, ^(FMDatabase *db) {
+        FMResultSet *resultSet = [db executeQuery:sql];
+        while ([resultSet next]) {
+            NSString *indexName = [resultSet stringForColumn:@"name"];
+            if (![indexName hasPrefix:@"sqlite_autoindex_"]) {
+                [indexes addObject:[resultSet stringForColumn:@"name"]];
+            }
+        }
+        [resultSet close];
+    });
+    
+    return indexes;
+}
+
+- (void)dropIndex:(NSString *)indexName withDatabaseQueue:(FMDatabaseQueue *)databaseQueue {
+    asyncInDb(databaseQueue, ^(FMDatabase *db) {
+        NSString *sql = [[NSString alloc] initWithFormat:@"DROP INDEX %@", indexName];
+        [db executeUpdate:sql];
+    });
+}
+
 #pragma mark - Primark Column Method
 - (NSString *)getPkColumn:(EDKEntity *)entity {
     EDKDbInfo *dbInfo = [self dbInfoFromeDbName:entity.dbName];
@@ -178,10 +209,8 @@
             [self syncExcuteSql:sql withDbQueue:databaseQueue];
             
             for (NSArray *index in indexes) {
-                asyncInDb(databaseQueue, ^(FMDatabase *db) {
-                    NSString *indexSql = [EDKUtilities createIndexesSql:tableName index:index allColumn:properties.allKeys];
-                    [db executeUpdate:indexSql];
-                });
+                NSAssert([index isKindOfClass:[NSArray class]], @"type error");
+                [self createIndexes:tableName index:index allColumns:properties.allKeys withDatabaseQueue:databaseQueue];
             }
             
         } else {
@@ -197,6 +226,20 @@
                 }
             }
             
+            NSMutableSet *allIndexes = [self getIndexes:tableName withDatabaseQueue:databaseQueue];
+            for (NSArray *index in indexes) {
+                NSAssert([index isKindOfClass:[NSArray class]], @"type error");
+                NSString *indexName = [[NSString alloc] initWithFormat:@"%@_%@", tableName, [index componentsJoinedByString:@"_"]];
+                if (![allIndexes containsObject:indexName]) {
+                    [self createIndexes:tableName index:index allColumns:properties.allKeys withDatabaseQueue:databaseQueue];
+                } else {
+                    [allIndexes removeObject:indexName];
+                }
+            }
+            
+            for (NSString *indexName in allIndexes) {
+                [self dropIndex:indexName withDatabaseQueue:databaseQueue];
+            }
         }
     }
     

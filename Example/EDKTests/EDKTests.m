@@ -33,6 +33,37 @@
     [self initial];
 }
 
+- (void)testAsyncSaveWithIndexes {
+    NSBundle *bundle = [NSBundle bundleForClass:[self class]];
+    NSString *subscribePath = [bundle pathForResource:@"subscribeData" ofType:@"json"];
+    NSData *subscribeData = [NSData dataWithContentsOfFile:subscribePath];
+    NSDictionary *subscribe;
+    
+    if (subscribeData) {
+        NSDictionary *dictionary = [NSJSONSerialization JSONObjectWithData:subscribeData options:NSJSONReadingAllowFragments error:nil];
+        subscribe = dictionary[@"data"];
+    }
+
+    NSDictionary *subcribeInfo = [[NSDictionary alloc] initWithDictionary:subscribe];
+    EDKEntity *subscribeEntity = [[EDKEntity alloc] initWithTableName:@"subcribes" dbName:@"TestIndex"];
+    [subscribeEntity saveData:subcribeInfo primaryColumn:nil relationShip:nil indexes:@[@[@"topicId"], @[@"content", @"messagePrefix"]]];
+    
+    // test update indexes
+//    [subscribeEntity saveData:subcribeInfo primaryColumn:nil relationShip:nil indexes:@[@[@"topicId"], @[@"keywords"]]];
+    
+    // for async task, because easydatakit's transaction default setup 1 second
+    XCTestExpectation *exp = [self expectationWithDescription:@"wtf?"];
+    sleep(1);
+    [exp fulfill];
+    
+    [self waitForExpectationsWithTimeout:3 handler:^(NSError * _Nullable error) {
+        if (error) {
+            NSLog(@"Timeout Error: %@", error);
+        }
+    }];
+
+}
+
 - (void)testQuery {
     EDKEntity *entity = [[EDKEntity alloc] initWithTableName:@"messages" dbName:nil];
     
@@ -136,17 +167,17 @@
         NSDictionary *message = [messages objectAtIndex:i];
         NSDictionary *topicInfo = message[@"topic"];
         EDKEntity *topicEntity = [[EDKEntity alloc] initWithTableName:@"topics" dbName:nil];
-        id topicRowId = [topicEntity saveData:topicInfo primaryColumn:nil relationShip:nil];
+        id topicRowId = [topicEntity saveData:topicInfo primaryColumn:nil relationShip:nil indexes:nil];
         
         EDKEntity *entity = [[EDKEntity alloc] initWithTableName:@"messages" dbName:nil];
-        [entity saveData:message primaryColumn:@"id" relationShip:@{@"topic": topicRowId}];
+        [entity saveData:message primaryColumn:@"id" relationShip:@{@"topic": topicRowId} indexes:nil];
     }
     
     // ex. how to add a field
     NSMutableDictionary *subcribeInfo = [[NSMutableDictionary alloc] initWithDictionary:subscribe];
     [subcribeInfo setObject:@1 forKey:@"isSubcribed"];
     EDKEntity *subscribeEntity = [[EDKEntity alloc] initWithTableName:@"subcribes" dbName:nil];
-    [subscribeEntity saveData:subcribeInfo primaryColumn:@"id" relationShip:nil];
+    [subscribeEntity saveData:subcribeInfo primaryColumn:@"id" relationShip:nil indexes:nil];
     
     // for async task, because easydatakit's transaction default setup 1 second
     XCTestExpectation *exp = [self expectationWithDescription:@"wtf?"];

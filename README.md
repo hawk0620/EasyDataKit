@@ -70,14 +70,14 @@ NSDictionary *subscribe = dictionary[@"data"];
 
 ```objc
 EDKEntity *subscribeEntity = [[EDKEntity alloc] initWithTableName:@"subcribes" dbName:nil];
-[subscribeEntity saveData:subscribe primaryColumn:@"id" relationShip:nil];
+[subscribeEntity saveData:subscribe primaryColumn:@"id" relationShip:nil indexes:nil];
 ```
 
 如果你不想使用 id 作为主键，你可以传 nil 让 EasyDataKit 自动生成每条记录的 rowId 作为主键列：
 
 ```objc
 EDKEntity *subscribeEntity = [[EDKEntity alloc] initWithTableName:@"subcribes" dbName:nil];
-[subscribeEntity saveData:subscribe primaryColumn:nil relationShip:nil];
+[subscribeEntity saveData:subscribe primaryColumn:nil relationShip:nil indexes:nil];
 ```
 
 你可以手动为数据添加列，实现满足业务的需求：
@@ -92,10 +92,17 @@ EDKEntity *subscribeEntity = [[EDKEntity alloc] initWithTableName:@"subcribes" d
 如果你想让某纪录关联其它对象，可以将对象存储后返回的 id 作为 value，key 是该纪录原本对应该对象的字段，这相当于用 id 这个值去替换原本字段对应的对象，从而达到拆分的目的：
 
 ```objc
-id rowId = [rectanglePictureEntity saveData:subscribe[@"rectanglePicture"] primaryColumn:nil relationShip:nil];
+id rowId = [rectanglePictureEntity saveData:subscribe[@"rectanglePicture"] primaryColumn:nil relationShip:nil indexes:nil];
 
 EDKEntity *subscribeEntity = [[EDKEntity alloc] initWithTableName:@"subcribes" dbName:nil];
-[subscribeEntity saveData:subscribe primaryColumn:@"id" relationShip:@{@"rectanglePicture": rowId}];
+[subscribeEntity saveData:subscribe primaryColumn:@"id" relationShip:@{@"rectanglePicture": rowId} indexes:nil];
+```
+
+存储索引：
+```objc
+NSDictionary *subcribeInfo = [[NSDictionary alloc] initWithDictionary:subscribe];
+EDKEntity *subscribeEntity = [[EDKEntity alloc] initWithTableName:@"subcribes" dbName:@"TestIndex"];
+[subscribeEntity saveData:subcribeInfo primaryColumn:nil relationShip:nil indexes:@[@[@"topicId"], @[@"content", @"messagePrefix"]]];
 ```
 
 ## 查询
@@ -242,14 +249,14 @@ Then you can call EasyDataKit method to store:
 
 ```objc
 EDKEntity *subscribeEntity = [[EDKEntity alloc] initWithTableName:@"subcribes" dbName:nil];
-[subscribeEntity saveData:subscribe primaryColumn:@"id" relationShip:nil];
+[subscribeEntity saveData:subscribe primaryColumn:@"id" relationShip:nil indexes:nil];
 ```
 
 If you don't want to use "id" as primary column, you can pass nil to use rowId as primary column:
 
 ```objc
 EDKEntity *subscribeEntity = [[EDKEntity alloc] initWithTableName:@"subcribes" dbName:nil];
-[subscribeEntity saveData:subscribe primaryColumn:nil relationShip:nil];
+[subscribeEntity saveData:subscribe primaryColumn:nil relationShip:nil indexes:nil];
 ```
 
 If you want to add a column manually:
@@ -264,10 +271,17 @@ EDKEntity *subscribeEntity = [[EDKEntity alloc] initWithTableName:@"subcribes" d
 If you have a relation with other object, notice the related field must be in the storage's data, it likes replace a field's value:
 
 ```objc
-id rowId = [rectanglePictureEntity saveData:subscribe[@"rectanglePicture"] primaryColumn:nil relationShip:nil];
+id rowId = [rectanglePictureEntity saveData:subscribe[@"rectanglePicture"] primaryColumn:nil relationShip:nil indexes:nil];
 
 EDKEntity *subscribeEntity = [[EDKEntity alloc] initWithTableName:@"subcribes" dbName:nil];
-[subscribeEntity saveData:subscribe primaryColumn:@"id" relationShip:@{@"rectanglePicture": rowId}];
+[subscribeEntity saveData:subscribe primaryColumn:@"id" relationShip:@{@"rectanglePicture": rowId} indexes:nil];
+```
+
+Store Index:
+```objc
+NSDictionary *subcribeInfo = [[NSDictionary alloc] initWithDictionary:subscribe];
+EDKEntity *subscribeEntity = [[EDKEntity alloc] initWithTableName:@"subcribes" dbName:@"TestIndex"];
+[subscribeEntity saveData:subcribeInfo primaryColumn:nil relationShip:nil indexes:@[@[@"topicId"], @[@"content", @"messagePrefix"]]];
 ```
 
 ## Query
