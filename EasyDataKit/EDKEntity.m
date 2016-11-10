@@ -17,6 +17,7 @@
 @property (nonatomic, strong, readwrite) NSString *primaryColumn;
 @property (nonatomic, strong, readwrite) NSDictionary *relationShip;
 @property (nonatomic, strong, readwrite) NSMutableString *columnInfoString;
+@property (nonatomic, strong, readwrite) NSArray *indexes;
 @property (nonatomic, assign, readwrite) BOOL hasPrimaryKey;
 @property (nonatomic, strong, readwrite) NSMutableDictionary *properties;
 @property (nonatomic, strong, readwrite) NSArray *columns;
@@ -46,16 +47,21 @@
     return [self initWithTableName:nil dbName:nil];
 }
 
-- (id)saveData:(NSDictionary *)data primaryColumn:(NSString *)primaryColumn relationShip:(NSDictionary *)relationShip {
+- (id)saveData:(NSDictionary *)data primaryColumn:(NSString *)primaryColumn relationShip:(NSDictionary *)relationShip indexes:(NSArray *)indexes {
     NSAssert([data isKindOfClass:[NSDictionary class]], @"type error");
     NSAssert(data.count != 0, @"data empty");
     self.data = data;
     self.primaryColumn = primaryColumn;
     self.hasPrimaryKey = YES;
     NSDictionary *m_relationShip;
+    NSArray *m_Indexes;
     if (relationShip) {
         NSAssert([relationShip isKindOfClass:[NSDictionary class]], @"type error");
         m_relationShip = relationShip;
+    }
+    if (indexes) {
+        NSAssert([indexes isKindOfClass:[NSArray class]], @"type error");
+        m_Indexes = indexes;
     }
     
     NSMutableString *columnInfoString = [[NSMutableString alloc] init];
@@ -71,6 +77,7 @@
     self.columnInfoString = columnInfoString;
     self.properties = properties;
     self.relationShip = newRelationShip;
+    self.indexes = m_Indexes;
     
     return [[EDKManager sharedInstance] saveObject:self];
 }

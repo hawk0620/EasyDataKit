@@ -40,6 +40,11 @@
  The column type prepare to generate sql.
  */
 @property (nonatomic, strong, readonly) NSMutableString *columnInfoString;
+
+/**
+ The table's indexes.
+ */
+@property (nonatomic, strong, readonly) NSArray *indexes;
 /**
  The data that will be stored is has primary key, if no, use rowId as its primary key by defalut.
  */
@@ -101,8 +106,10 @@
  
  @param relationShip The relation that relate other data, if data dosen't need relate, set `nil`.
  
+ @param indexes The table's indexes, if doesn't need indexes, pass `nil`.
+ 
  */
-- (id)saveData:(NSDictionary *)data primaryColumn:(NSString *)primaryColumn relationShip:(NSDictionary *)relationShip;
+- (id)saveData:(NSDictionary *)data primaryColumn:(NSString *)primaryColumn relationShip:(NSDictionary *)relationShip indexes:(NSArray *)indexes;
 
 /**
  Returns data in the table.

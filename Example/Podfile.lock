@@ -1,5 +1,5 @@
 PODS:
-  - EasyDataKit (0.0.2):
+  - EasyDataKit (0.0.3):
     - FMDB
   - FMDB (2.6.2):
     - FMDB/standard (= 2.6.2)
@@ -13,7 +13,9 @@ EXTERNAL SOURCES:
     :path: ../
 
 SPEC CHECKSUMS:
-  EasyDataKit: 7279c13f2e1cae73546163286887c57dfb3acd8d
+  EasyDataKit: daba7b2385326f1d41252d4f86a7e8595f38d42e
   FMDB: 854a0341b4726e53276f2a8996f06f1b80f9259a
 
-COCOAPODS: 0.39.0
+PODFILE CHECKSUM: fc7600932c60ceb36d941d6d10b8851e65ebd100
+
+COCOAPODS: 1.0.0

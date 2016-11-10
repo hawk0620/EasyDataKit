@@ -169,13 +169,21 @@
 }
 
 #pragma mark - Save Method
-- (void)createOrUpdateTable:(NSString *)tableName primaryKey:(NSString *)primaryKey columnInfoString:(NSMutableString *)columnInfoString hasPrimaryKey:(BOOL)hasPrimaryKey properties:(NSDictionary *)properties withDatabaseQueue:(FMDatabaseQueue *)databaseQueue {
+- (void)createOrUpdateTable:(NSString *)tableName primaryKey:(NSString *)primaryKey columnInfoString:(NSMutableString *)columnInfoString hasPrimaryKey:(BOOL)hasPrimaryKey properties:(NSDictionary *)properties indexes:(NSArray *)indexes withDatabaseQueue:(FMDatabaseQueue *)databaseQueue {
     @synchronized (self) {
         BOOL isTableExist = [self existTable:tableName withDatabaseQueue:databaseQueue];
         
         if (!isTableExist) {
             NSString *sql = [EDKUtilities createTableSql:tableName columnInfoString:columnInfoString primaryKey:primaryKey hasPrimaryKey:hasPrimaryKey];
             [self syncExcuteSql:sql withDbQueue:databaseQueue];
+            
+            for (NSArray *index in indexes) {
+                asyncInDb(databaseQueue, ^(FMDatabase *db) {
+                    NSString *indexSql = [EDKUtilities createIndexesSql:tableName index:index allColumn:properties.allKeys];
+                    [db executeUpdate:indexSql];
+                });
+            }
+            
         } else {
             NSArray *tableColumns = [self tableColumns:tableName withDatabaseQueue:databaseQueue];
             
@@ -230,7 +238,7 @@
     __block NSNumber *rowId;
     EDKDbInfo *dbInfo = [self dbInfoFromeDbName:entity.dbName];
     
-    [self createOrUpdateTable:entity.tableName primaryKey:entity.primaryColumn columnInfoString:entity.columnInfoString hasPrimaryKey:entity.hasPrimaryKey properties:entity.properties withDatabaseQueue:dbInfo.databaseQueue];
+    [self createOrUpdateTable:entity.tableName primaryKey:entity.primaryColumn columnInfoString:entity.columnInfoString hasPrimaryKey:entity.hasPrimaryKey properties:entity.properties indexes:entity.indexes withDatabaseQueue:dbInfo.databaseQueue];
     [self insertToTable:entity.tableName properties:entity.properties hasPrimaryKey:entity.hasPrimaryKey rowId:&rowId withDatabaseQueue:dbInfo];
     
     return entity.hasPrimaryKey ? entity.properties[entity.primaryColumn] : rowId;

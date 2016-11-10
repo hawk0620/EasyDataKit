@@ -195,6 +195,26 @@ dispatch_source_t CreateDispatchTimer(double interval, dispatch_queue_t queue, d
     return sql;
 }
 
++ (NSString *)createIndexesSql:(NSString *)tableName index:(NSArray *)index allColumn:(NSArray *)allColumn {
+    NSMutableString *columns = [[NSMutableString alloc] init];
+    for (NSInteger i = 0; i < index.count; i++) {
+        id value = [index objectAtIndex:i];
+        NSAssert([value isKindOfClass:[NSString class]], @"type error");
+        NSAssert([allColumn containsObject:value], @"can't find index column in all columns");
+        
+        if (i == index.count - 1) {
+            [columns appendString:value];
+        } else {
+            [columns appendFormat:@"%@,", value];
+        }
+    }
+    
+    NSString *indexName = [[NSString alloc] initWithFormat:@"%@_%@", tableName, [index componentsJoinedByString:@"_"]];
+    NSString *sql = [[NSString alloc] initWithFormat:@"CREATE INDEX IF NOT EXISTS %@ ON %@ (%@)", indexName, tableName, columns];
+    
+    return sql;
+}
+
 + (NSString *)alterTableSql:(NSString *)tableName dictionary:(NSDictionary *)dictionary {
     NSMutableDictionary *newColumn = [[NSMutableDictionary alloc] init];
     NSMutableString *newColumnString = [[NSMutableString alloc] init];

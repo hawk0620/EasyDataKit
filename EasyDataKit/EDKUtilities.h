@@ -24,6 +24,8 @@ extern dispatch_source_t CreateDispatchTimer(double interval, dispatch_queue_t q
 
 + (NSString *)createTableSql:(NSString *)tableName columnInfoString:(NSMutableString *)columnInfoString primaryKey:(NSString *)primaryKey hasPrimaryKey:(BOOL)hasPrimaryKey;
 
++ (NSString *)createIndexesSql:(NSString *)tableName index:(NSArray *)index allColumn:(NSArray *)allColumn;
+
 + (NSString *)alterTableSql:(NSString *)tableName dictionary:(NSDictionary *)dictionary;
 
 + (NSString *)insertSql:(NSString *)tableName tableColumns:(NSArray *)tableColumns propertyDict:(NSDictionary *)propertyDict arguments:(NSMutableArray * __autoreleasing *)arguments;
