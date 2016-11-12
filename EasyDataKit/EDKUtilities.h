@@ -6,7 +6,7 @@
 //
 
 #import <Foundation/Foundation.h>
-#import "FMDB.h"
+#import <FMDB/FMDB.h>
 
 typedef void (^DbBlock)(FMDatabase *db);
 
